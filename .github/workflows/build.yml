@@ -1,0 +1,60 @@
+name: Build Flutter
+
+on:
+  workflow_dispatch:
+    inputs:
+      target:
+        description: apk or appbundle
+        type: choice
+        default: apk
+        options:
+          - apk
+          - appbundle
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+
+      - name: Create Android folder
+        run: |
+          flutter create --platforms=android --org com.st --project-name st .
+          git checkout -- lib pubspec.yaml test
+
+      - name: Pub get
+        run: flutter pub get
+
+      - name: Generate launcher icons
+        if: ${{ hashFiles('assets/icon/icon.png') != '' }}
+        run: dart run flutter_launcher_icons
+
+      - name: Analyze
+        run: flutter analyze --no-fatal-infos
+
+      - name: Test
+        run: flutter test
+
+      - name: Build
+        run: flutter build ${{ inputs.target || 'apk' }} --release
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: app-release
+          path: |
+            build/app/outputs/flutter-apk/*.apk
+            build/app/outputs/bundle/release/*.aab
